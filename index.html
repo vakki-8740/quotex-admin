@@ -175,29 +175,6 @@
         }
         .edit-bar .cancel-edit:hover { background: rgba(255,255,255,0.16); }
 
-        .session-bar {
-            background: #1a1f2e; padding: 8px 16px; display: flex; gap: 6px;
-            border-bottom: 1px solid rgba(255,255,255,0.05); overflow-x: auto; flex-shrink: 0;
-            align-items: center;
-        }
-        .session-bar .sb-label {
-            font-size: 11px; color: #5a627a; font-weight: 600; white-space: nowrap; margin-right: 4px;
-        }
-        .sess-tab {
-            background: #2d3447; border: none; color: #b0b8cc; padding: 4px 12px;
-            border-radius: 12px; font-size: 11px; cursor: pointer; white-space: nowrap;
-            transition: all 0.2s; flex-shrink: 0;
-        }
-        .sess-tab:hover { background: #3a425a; }
-        .sess-tab.active { background: rgba(34,197,94,0.15); color: #22c55e; }
-        .sess-tab.all-tab { font-weight: 600; }
-        .sess-badge {
-            font-size: 10px; color: #5a627a; display: block; margin-bottom: 2px;
-            font-weight: 500;
-        }
-        .msg.admin .sess-badge { color: #7a8299; }
-        .msg.user .sess-badge { color: rgba(255,255,255,0.5); }
-
         .toast {
             position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
             background: #2d3447; color: #fff; padding: 10px 20px; border-radius: 10px;
@@ -267,10 +244,6 @@
             </div>
 
             <div class="chat-view" id="chatView">
-                <div class="session-bar" id="sessionBar" style="display:none;">
-                    <span class="sb-label"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#b0b8cc" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Sessions:</span>
-                    <button class="sess-tab all-tab active" data-sess="all" onclick="selectAdminSession('all')">All</button>
-                </div>
                 <div class="chat-view-messages" id="chatMessages">
                     <div class="empty-state">Select a user from the sidebar to start chatting</div>
                 </div>
@@ -331,13 +304,6 @@
         let unsubAdminMessages = null;
         let allUsers = [];
         let editingMessageId = null;
-        let adminSessions = {};
-        let adminSelectedSession = 'all';
-        const SESSION_COLORS = ['#22c55e', '#ff9f43', '#ef4444', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6', '#eab308'];
-        function getSessionIcon(idx) {
-            var c = SESSION_COLORS[idx % SESSION_COLORS.length] || '#5a627a';
-            return '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="' + c + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
-        }
         let unreadUsers = new Set();
         let lastSeenMessages = {};
         const NEW_USER_HOURS = 24;
@@ -419,10 +385,8 @@
             selectedUserAssignedId = assignedId;
             unreadUsers.delete(userId);
             filterUsers();
-            adminSelectedSession = 'all';
             document.getElementById('adminSidebar').classList.remove('open');
             document.getElementById('sidebarOverlay').classList.remove('open');
-            document.getElementById('sessionBar').style.display = 'none';
             document.getElementById('mainHeaderTitle').innerHTML = getUserLogoImg(assignedId) + ' <span style="vertical-align:middle;">User ' + assignedId + '</span>';
             document.getElementById('chatInput').style.display = 'flex';
             document.getElementById('userActions').style.display = 'flex';
@@ -462,9 +426,6 @@
             const activeItem = document.querySelector(`.user-item[onclick*="'${userId}'"]`);
             if (activeItem) activeItem.classList.add('active');
 
-            // Load sessions for this user
-            loadAdminSessions();
-
             if (unsubAdminMessages) unsubAdminMessages();
 
             const container = document.getElementById('chatMessages');
@@ -482,13 +443,6 @@
                             return;
                         }
 
-                        // Filter by selected session
-                        var msgSession = data.sessionId || 'main';
-                        if (adminSelectedSession !== 'all' && msgSession !== adminSelectedSession) {
-                            if (existing) existing.remove();
-                            return;
-                        }
-
                         if (change.type === 'added' && !existing) {
                             var div = document.createElement('div');
                             var cls = 'msg ' + data.sender;
@@ -499,10 +453,6 @@
                             div.dataset.docId = docId;
                             const ts = data.timestamp && data.timestamp.toDate ? data.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now';
                             var innerContent = '';
-                            var sessName = adminSessions[msgSession] ? adminSessions[msgSession].name : 'Chat';
-                            var sessIdx = Object.keys(adminSessions).indexOf(msgSession);
-                            var sessIcon = getSessionIcon(sessIdx >= 0 ? sessIdx : 0);
-                            innerContent += '<span class="sess-badge">' + sessIcon + ' ' + sessName + '</span>';
                             if (data.imageUrl) innerContent += '<img class="msg-img" src="' + data.imageUrl + '" alt="Image" onclick="window.open(this.src)" loading="lazy">';
                             if (data.text) innerContent += data.text;
                             innerContent += '<span class="time">' + ts + '</span>';
@@ -547,10 +497,6 @@
                             existing.dataset.docId = docId;
                             var ts2 = data.timestamp && data.timestamp.toDate ? data.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now';
                             var ic = '';
-                            var sName = adminSessions[msgSession] ? adminSessions[msgSession].name : 'Chat';
-                            var sIdx = Object.keys(adminSessions).indexOf(msgSession);
-                            var sIcon = getSessionIcon(sIdx >= 0 ? sIdx : 0);
-                            ic += '<span class="sess-badge">' + sIcon + ' ' + sName + '</span>';
                             if (data.imageUrl) ic += '<img class="msg-img" src="' + data.imageUrl + '" alt="Image" onclick="window.open(this.src)" loading="lazy">';
                             if (data.text) ic += data.text;
                             ic += '<span class="time">' + ts2 + '</span>';
@@ -587,54 +533,6 @@
                     container.querySelectorAll('.msg-actions.show').forEach(function(el) { el.classList.remove('show'); });
                 }
             };
-        }
-
-        function loadAdminSessions() {
-            if (!selectedUserId) return;
-            db.collection('chatSessions').doc(selectedUserId).collection('sessions')
-                .orderBy('order', 'asc').onSnapshot(function(snap) {
-                    adminSessions = {};
-                    var html = '<span class="sb-label"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#b0b8cc" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Sessions:</span>';
-                    html += '<button class="sess-tab all-tab active" data-sess="all" onclick="selectAdminSession(\'all\')">All</button>';
-                    var idx = 0;
-                    snap.forEach(function(doc) {
-                        var s = doc.data();
-                        adminSessions[doc.id] = s;
-                        var icon = getSessionIcon(idx);
-                        var activeClass = adminSelectedSession === doc.id ? ' active' : '';
-                        html += '<button class="sess-tab' + activeClass + '" data-sess="' + doc.id + '" onclick="selectAdminSession(\'' + doc.id + '\')">' + icon + ' ' + (s.name || 'Chat') + '</button>';
-                        idx++;
-                    });
-                    document.getElementById('sessionBar').innerHTML = html;
-                    document.getElementById('sessionBar').style.display = 'flex';
-                });
-        }
-
-        function selectAdminSession(sessionId) {
-            adminSelectedSession = sessionId;
-            document.querySelectorAll('.sess-tab').forEach(function(t) { t.classList.remove('active'); });
-            var tabs = document.querySelectorAll('.sess-tab');
-            for (var i = 0; i < tabs.length; i++) {
-                if (tabs[i].getAttribute('data-sess') === sessionId) {
-                    tabs[i].classList.add('active');
-                    break;
-                }
-            }
-            // Re-run the snapshot to filter messages
-            if (unsubAdminMessages) {
-                var container = document.getElementById('chatMessages');
-                container.querySelectorAll('.msg').forEach(function(el) { el.remove(); });
-                var emptyState = container.querySelector('.empty-state');
-                if (emptyState) emptyState.style.display = 'block';
-            }
-            if (selectedUserId) {
-                if (unsubAdminMessages) unsubAdminMessages();
-                // Re-run selectUser to reload messages with new session filter
-                var uid = selectedUserId;
-                var aid = selectedUserAssignedId;
-                selectedUserId = null;
-                selectUser(uid, aid);
-            }
         }
 
         async function deleteMsg(docId) {
@@ -687,13 +585,10 @@
                 return;
             }
 
-            // Determine which session to tag this reply with
-            var replySession = adminSelectedSession !== 'all' ? adminSelectedSession : 'main';
             db.collection('chatMessages').doc(selectedUserId).collection('messages').add({
                 text, sender: 'admin',
                 timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                deleted: false,
-                sessionId: replySession
+                deleted: false
             }).then(async () => {
                 input.value = ''; input.style.height = 'auto';
                 await db.collection('chatUsers').doc(selectedUserId).update({
